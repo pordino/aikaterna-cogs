@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from redbot.core import commands
+from redbot.core.utils.chat_formatting import pagify
 
 
 log = logging.getLogger("red.aikaterna.dictionary")
@@ -11,6 +12,10 @@ log = logging.getLogger("red.aikaterna.dictionary")
 class Dictionary(commands.Cog):
     """Word, yo
     Parts of this cog are adapted from the PyDictionary library."""
+
+    async def red_delete_data_for_user(self, **kwargs):
+        """ Nothing to delete """
+        return
 
     def __init__(self, bot):
         self.bot = bot
@@ -30,20 +35,22 @@ class Dictionary(commands.Cog):
     @commands.command()
     async def antonym(self, ctx, *, word: str):
         """Displays antonyms for a given word."""
-        search_msg = await ctx.send("Searching...")
         search_term = word.split(" ", 1)[0]
         result = await self._antonym(ctx, search_term)
         if not result:
-            return await search_msg.edit(content="This word is not in the dictionary.")
+            await ctx.send("This word is not in the dictionary.")
+            return 
 
         result_text = "*, *".join(result)
-        await search_msg.edit(content=f"Antonyms for **{search_term}**: *{result_text}*")
+        msg = f"Antonyms for **{search_term}**: *{result_text}*"
+        for page in pagify(msg, delims=["\n"]):
+            await ctx.send(page)
 
     async def _antonym(self, ctx, word):
         data = await self._get_soup_object(f"http://www.thesaurus.com/browse/{word}")
         if not data:
             return await ctx.send("Error fetching data.")
-        section = data.find_all("ul", {"class": "css-1lc0dpe et6tpn80"})
+        section = data.find_all("ul", {"class": "css-1ytlws2 et6tpn80"})
         try:
             section[1]
         except IndexError:
@@ -60,7 +67,9 @@ class Dictionary(commands.Cog):
         result = await self._definition(ctx, search_term)
         str_buffer = ""
         if not result:
-            return await search_msg.edit(content="This word is not in the dictionary.")
+            await search_msg.delete()
+            await ctx.send("This word is not in the dictionary.")
+            return
         for key in result:
             str_buffer += f"\n**{key}**: \n"
             counter = 1
@@ -77,7 +86,9 @@ class Dictionary(commands.Cog):
                     else:
                         str_buffer += f"{str(counter)}. {val}\n"
                         counter += 1
-        await search_msg.edit(content=str_buffer)
+        await search_msg.delete()
+        for page in pagify(str_buffer, delims=["\n"]):
+            await ctx.send(page)
 
     async def _definition(self, ctx, word):
         data = await self._get_soup_object(f"http://wordnetweb.princeton.edu/perl/webwn?s={word}")
@@ -105,7 +116,7 @@ class Dictionary(commands.Cog):
         data = await self._get_soup_object(f"http://www.thesaurus.com/browse/{word}")
         if not data:
             return await ctx.send("Error fetching data.")
-        section = data.find_all("ul", {"class": "css-1lc0dpe et6tpn80"})
+        section = data.find_all("ul", {"class": "css-1ytlws2 et6tpn80"})
         try:
             section[1]
         except IndexError:
@@ -117,11 +128,13 @@ class Dictionary(commands.Cog):
     @commands.command()
     async def synonym(self, ctx, *, word: str):
         """Displays synonyms for a given word."""
-        search_msg = await ctx.send("Searching...")
         search_term = word.split(" ", 1)[0]
         result = await self._synonym(ctx, search_term)
         if not result:
-            return await search_msg.edit(content="This word is not in the dictionary.")
+            await ctx.send("This word is not in the dictionary.")
+            return
 
         result_text = "*, *".join(result)
-        await search_msg.edit(content=f"Synonyms for **{search_term}**: *{result_text}*")
+        msg = f"Synonyms for **{search_term}**: *{result_text}*"
+        for page in pagify(msg, delims=["\n"]):
+            await ctx.send(page)

@@ -1,6 +1,6 @@
 import discord
 from redbot.core import Config, commands, checks
-from typing import Optional
+from typing import Optional, Literal
 import datetime
 import re
 
@@ -11,7 +11,7 @@ class Away(commands.Cog):
     """Le away cog"""
 
     default_global_settings = {"ign_servers": []}
-    default_guild_settings = {"TEXT_ONLY": False}
+    default_guild_settings = {"TEXT_ONLY": False, "BLACKLISTED_MEMBERS": []}
     default_user_settings = {
         "MESSAGE": False,
         "IDLE_MESSAGE": False,
@@ -19,8 +19,13 @@ class Away(commands.Cog):
         "OFFLINE_MESSAGE": False,
         "GAME_MESSAGE": {},
         "STREAMING_MESSAGE": False,
-        "LISTENING_MESSAGE": False,
+        "LISTENING_MESSAGE": False
     }
+
+    async def red_delete_data_for_user(
+        self, *, requester: Literal["discord", "owner", "user", "user_strict"], user_id: int,
+    ):
+        await self._away.user_from_id(user_id).clear()
 
     def __init__(self, bot):
         self.bot = bot
@@ -69,17 +74,14 @@ class Away(commands.Cog):
             em.set_author(name=f"{author.display_name} is currently idle", icon_url=avatar)
         elif state == "dnd":
             em = discord.Embed(description=message, color=color)
-            em.set_author(
-                name=f"{author.display_name} is currently do not disturb", icon_url=avatar
-            )
+            em.set_author(name=f"{author.display_name} is currently do not disturb", icon_url=avatar)
         elif state == "offline":
             em = discord.Embed(description=message, color=color)
             em.set_author(name=f"{author.display_name} is currently offline", icon_url=avatar)
         elif state == "gaming":
             em = discord.Embed(description=message, color=color)
             em.set_author(
-                name=f"{author.display_name} is currently playing {author.activity.name}",
-                icon_url=avatar,
+                name=f"{author.display_name} is currently playing {author.activity.name}", icon_url=avatar,
             )
             em.title = getattr(author.activity, "details", None)
             thumbnail = getattr(author.activity, "large_image_url", None)
@@ -89,8 +91,7 @@ class Away(commands.Cog):
             status = [c for c in author.activities if c.type == discord.ActivityType.playing]
             em = discord.Embed(description=message, color=color)
             em.set_author(
-                name=f"{author.display_name} is currently playing {status[0].name}",
-                icon_url=avatar,
+                name=f"{author.display_name} is currently playing {status[0].name}", icon_url=avatar,
             )
             em.title = getattr(status[0], "details", None)
             thumbnail = getattr(status[0], "large_image_url", None)
@@ -98,6 +99,7 @@ class Away(commands.Cog):
                 em.set_thumbnail(url=thumbnail)
         elif state == "listening":
             em = discord.Embed(color=author.activity.color)
+            url = f"https://open.spotify.com/track/{author.activity.track_id}"
             artist_title = f"{author.activity.title} by " + ", ".join(
                 a for a in author.activity.artists
             )
@@ -105,21 +107,33 @@ class Away(commands.Cog):
                 len(author.display_name) + 27
             )  # incase we go over the max allowable size
             em.set_author(
-                name=f"{author.display_name} is currently listening to {artist_title[:limit]}",
+                name=f"{author.display_name} is currently listening to",
                 icon_url=avatar,
+                url=url,
             )
-            em.description = message + "\n" + self._draw_play(author.activity)
+            em.description = (
+                f"{message}\n "
+                f"[{artist_title}]({url})\n"
+                f"{self._draw_play(author.activity)}"
+            )
+
             em.set_thumbnail(url=author.activity.album_cover_url)
         elif state == "listeningcustom":
             activity = [c for c in author.activities if c.type == discord.ActivityType.listening]
             em = discord.Embed(color=activity[0].color)
+            url = f"https://open.spotify.com/track/{activity[0].track_id}"
             artist_title = f"{activity[0].title} by " + ", ".join(a for a in activity[0].artists)
             limit = 256 - (len(author.display_name) + 27)
             em.set_author(
-                name=f"{author.display_name} is currently listening to {artist_title[:limit]}",
+                name=f"{author.display_name} is currently listening to",
                 icon_url=avatar,
+                url=url
             )
-            em.description = message + "\n" + self._draw_play(activity[0])
+            em.description = (
+                f"{message}\n "
+                f"[{artist_title}]({url})\n"
+                f"{self._draw_play(activity[0])}"
+            )
             em.set_thumbnail(url=activity[0].album_cover_url)
         elif state == "streaming":
             color = int("6441A4", 16)
@@ -127,8 +141,7 @@ class Away(commands.Cog):
             em.description = message + "\n" + author.activity.url
             em.title = getattr(author.activity, "details", None)
             em.set_author(
-                name=f"{author.display_name} is currently streaming {author.activity.name}",
-                icon_url=avatar,
+                name=f"{author.display_name} is currently streaming {author.activity.name}", icon_url=avatar,
             )
         elif state == "streamingcustom":
             activity = [c for c in author.activities if c.type == discord.ActivityType.streaming]
@@ -137,8 +150,7 @@ class Away(commands.Cog):
             em.description = message + "\n" + activity[0].url
             em.title = getattr(author.activity, "details", None)
             em.set_author(
-                name=f"{author.display_name} is currently streaming {activity[0].name}",
-                icon_url=avatar,
+                name=f"{author.display_name} is currently streaming {activity[0].name}", icon_url=avatar,
             )
         else:
             em = discord.Embed(color=color)
@@ -178,9 +190,7 @@ class Away(commands.Cog):
             status = [c for c in author.activities if c.type == discord.ActivityType.playing]
             msg = f"{author.display_name} is currently playing {status[0].name}"
         elif state == "listening":
-            artist_title = f"{author.activity.title} by " + ", ".join(
-                a for a in author.activity.artists
-            )
+            artist_title = f"{author.activity.title} by " + ", ".join(a for a in author.activity.artists)
             currently_playing = self._draw_play(author.activity)
             msg = f"{author.display_name} is currently listening to {artist_title}\n{currently_playing}"
         elif state == "listeningcustom":
@@ -229,8 +239,9 @@ class Away(commands.Cog):
         if message.author.bot:
             return
 
+        bl_members = await self._away.guild(guild).BLACKLISTED_MEMBERS()
         for author in message.mentions:
-            if guild.id in list_of_guilds_ign and not await self.is_mod_or_admin(author):
+            if (guild.id in list_of_guilds_ign and not await self.is_mod_or_admin(author)) or author.id in bl_members:
                 continue
             user_data = await self._away.user(author).all()
             text_only = await self._away.guild(guild).TEXT_ONLY()
@@ -300,9 +311,7 @@ class Away(commands.Cog):
                     await message.channel.send(msg, delete_after=delete_after)
                 continue
             if streaming_msg and type(author.activity) is discord.CustomActivity:
-                stream_status = [
-                    c for c in author.activities if c.type == discord.ActivityType.streaming
-                ]
+                stream_status = [c for c in author.activities if c.type == discord.ActivityType.streaming]
                 if not stream_status:
                     continue
                 streaming_msg, delete_after = streaming_msg
@@ -324,9 +333,7 @@ class Away(commands.Cog):
                     await message.channel.send(msg, delete_after=delete_after)
                 continue
             if listening_msg and type(author.activity) is discord.CustomActivity:
-                listening_status = [
-                    c for c in author.activities if c.type == discord.ActivityType.listening
-                ]
+                listening_status = [c for c in author.activities if c.type == discord.ActivityType.listening]
                 if not listening_status:
                     continue
                 listening_msg, delete_after = listening_msg
@@ -351,9 +358,7 @@ class Away(commands.Cog):
                             await message.channel.send(msg, delete_after=delete_after)
                             break
             if gaming_msgs and type(author.activity) is discord.CustomActivity:
-                game_status = [
-                    c for c in author.activities if c.type == discord.ActivityType.playing
-                ]
+                game_status = [c for c in author.activities if c.type == discord.ActivityType.playing]
                 if not game_status:
                     continue
                 for game in gaming_msgs:
@@ -393,7 +398,7 @@ class Away(commands.Cog):
     async def idle_(self, ctx, delete_after: Optional[int] = None, *, message: str = None):
         """
         Set an automatic reply when you're idle.
-        
+
         `delete_after` Optional seconds to delete the automatic reply
         `message` The custom message to display when you're mentioned
         """
@@ -414,7 +419,7 @@ class Away(commands.Cog):
     async def offline_(self, ctx, delete_after: Optional[int] = None, *, message: str = None):
         """
         Set an automatic reply when you're offline.
-        
+
         `delete_after` Optional seconds to delete the automatic reply
         `message` The custom message to display when you're mentioned
         """
@@ -488,18 +493,14 @@ class Away(commands.Cog):
             msg = "The bot will no longer reply for you when you're mentioned while listening to Spotify."
         else:
             await self._away.user(author).LISTENING_MESSAGE.set((message, delete_after))
-            msg = (
-                "The bot will now reply for you when you're mentioned while listening to Spotify."
-            )
+            msg = "The bot will now reply for you when you're mentioned while listening to Spotify."
         await ctx.send(msg)
 
     @commands.command(name="gaming")
-    async def gaming_(
-        self, ctx, game: str, delete_after: Optional[int] = None, *, message: str = None
-    ):
+    async def gaming_(self, ctx, game: str, delete_after: Optional[int] = None, *, message: str = None):
         """
         Set an automatic reply when you're playing a specified game.
-        
+
         `game` The game you would like automatic responses for
         `delete_after` Optional seconds to delete the automatic reply
         `message` The custom message to display when you're mentioned
@@ -523,13 +524,26 @@ class Away(commands.Cog):
 
     @commands.command(name="toggleaway")
     @checks.admin_or_permissions(administrator=True)
-    async def _ignore(self, ctx):
+    async def _ignore(self, ctx, member: discord.Member=None):
         """
-        Toggle away messages on the whole server.
-        
+        Toggle away messages on the whole server or a specific guild member.
+
         Mods, Admins and Bot Owner are immune to this.
         """
         guild = ctx.message.guild
+        if member:
+            bl_mems = await self._away.guild(guild).BLACKLISTED_MEMBERS()
+            if member.id not in bl_mems:
+                bl_mems.append(member.id)
+                await self._away.guild(guild).BLACKLISTED_MEMBERS.set(bl_mems)
+                msg = f"Away messages will not appear when {member.display_name} is mentioned in this guild."
+                await ctx.send(msg)
+            elif member.id in bl_mems:
+                bl_mems.remove(member.id)
+                await self._away.guild(guild).BLACKLISTED_MEMBERS.set(bl_mems)
+                msg = f"Away messages will appear when {member.display_name} is mentioned in this guild."
+                await ctx.send(msg)
+            return
         if guild.id in (await self._away.ign_servers()):
             guilds = await self._away.ign_servers()
             guilds.remove(guild.id)
@@ -547,14 +561,16 @@ class Away(commands.Cog):
     async def awaytextonly(self, ctx):
         """
         Toggle forcing the guild's away messages to be text only.
-        
+
         This overrides the embed_links check this cog uses for message sending.
         """
         text_only = await self._away.guild(ctx.guild).TEXT_ONLY()
         if text_only:
             message = "Away messages will now be embedded or text only based on the bot's permissions for embed links."
         else:
-            message = "Away messages are now forced to be text only, regardless of the bot's permissions for embed links."
+            message = (
+                "Away messages are now forced to be text only, regardless of the bot's permissions for embed links."
+            )
         await self._away.guild(ctx.guild).TEXT_ONLY.set(not text_only)
         await ctx.send(message)
 
@@ -606,9 +622,7 @@ class Away(commands.Cog):
 
         if ctx.channel.permissions_for(ctx.me).embed_links:
             em = discord.Embed(description=msg[:2048], color=author.color)
-            em.set_author(
-                name=f"{author.display_name}'s away settings", icon_url=author.avatar_url
-            )
+            em.set_author(name=f"{author.display_name}'s away settings", icon_url=author.avatar_url)
             await ctx.send(embed=em)
         else:
             await ctx.send(f"{author.display_name} away settings\n" + msg)

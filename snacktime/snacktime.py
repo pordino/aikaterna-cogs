@@ -5,6 +5,7 @@ from random import randint
 from random import choice as randchoice
 
 from redbot.core import bank, checks, commands, Config
+from redbot.core.errors import BalanceTooHigh
 from redbot.core.utils.chat_formatting import box, humanize_list, pagify
 
 from .phrases import FRIENDS, SNACKBURR_PHRASES
@@ -15,6 +16,10 @@ log = logging.getLogger("red.aikaterna.snacktime")
 
 class Snacktime(commands.Cog):
     """Snackburr's passing out pb jars!"""
+
+    async def red_delete_data_for_user(self, **kwargs):
+        """ Nothing to delete """
+        return
 
     def __init__(self, bot):
         self.bot = bot
@@ -48,14 +53,23 @@ class Snacktime(commands.Cog):
         self.config.register_guild(**default_guild)
         self.config.register_channel(**default_channel)
 
-    async def persona_choice(self, msg):
-        invite_friends = await self.config.guild(msg.guild).FRIENDS()
+    async def persona_choice(self, ctx: None, message: None):
+        if ctx:
+            invite_friends = await self.config.guild(ctx.guild).FRIENDS()
+        else:
+            invite_friends = await self.config.guild(message.guild).FRIENDS()
         personas = FRIENDS
         if not invite_friends:
-            return "Snackburr"
+            return "Snackburr" if message else "ʕ •ᴥ•ʔ <"
         elif invite_friends is True:
-            del personas["Snackburr"]
-        return randchoice(list(personas.keys()))
+            try:
+                del personas["Snackburr"]
+            except KeyError:
+                pass
+        if message:
+            return randchoice(list(personas.keys()))
+        else:
+            return randchoice(list(personas.values()))
 
     async def get_response(self, msg, phrase_type):
         scid = f"{msg.guild.id}-{msg.channel.id}"
@@ -63,6 +77,27 @@ class Snacktime(commands.Cog):
         persona_phrase = FRIENDS.get(persona)
         phrase = randchoice(SNACKBURR_PHRASES[phrase_type])
         return f"`{persona_phrase} {phrase}`"
+
+    @commands.cooldown(1, 1, commands.BucketType.channel)
+    @commands.guild_only()
+    @commands.command()
+    async def eat(self, ctx, amount: int):
+        """
+        all this talk about pb is makin me hungry.
+
+        how bout you guys?
+        """
+        persona = await self.persona_choice(ctx=ctx, message=None)
+        if amount < 0:
+            return await ctx.send(f"`{persona} Woah slow down!`")
+        if amount > await bank.get_balance(ctx.author):
+            return await ctx.send(f"`{persona} You don't got that much pb!.. don't look at me..`")
+
+        await bank.withdraw_credits(ctx.author, amount)
+
+        first_phrase = randchoice(SNACKBURR_PHRASES["EAT_BEFORE"])
+        second_phrase = randchoice(SNACKBURR_PHRASES["EAT_AFTER"])
+        await ctx.send(f"`{persona} {ctx.author.display_name} {first_phrase} {second_phrase} {amount} whole pb jars!`")
 
     @commands.guild_only()
     @commands.group()
@@ -88,9 +123,7 @@ class Snacktime(commands.Cog):
 
             msg = f"[Delivering in]:           {humanize_list(channel_names)}\n"
             msg += f"[Event start delay]:       {guild_data['EVENT_START_DELAY']} seconds\n"
-            msg += (
-                f"[Event start variance]:    {guild_data['EVENT_START_DELAY_VARIANCE']} seconds\n"
-            )
+            msg += f"[Event start variance]:    {guild_data['EVENT_START_DELAY_VARIANCE']} seconds\n"
             msg += f"[Friends status]:          {invite_friends}\n"
             msg += f"[Messages before event]:   {guild_data['MSGS_BEFORE_EVENT']}\n"
             msg += f"[Snack amount limit]:      {guild_data['SNACK_AMOUNT']} pb\n"
@@ -103,18 +136,14 @@ class Snacktime(commands.Cog):
     @snackset.command()
     async def errandtime(self, ctx, seconds: int):
         """How long snackburr needs to be out doin errands.. more or less."""
-        event_start_delay_variance = await self.config.guild(
-            ctx.guild
-        ).EVENT_START_DELAY_VARIANCE()
+        event_start_delay_variance = await self.config.guild(ctx.guild).EVENT_START_DELAY_VARIANCE()
         if seconds <= event_start_delay_variance:
             await ctx.send("errandtime must be greater than errandvariance!")
         elif seconds <= 0:
             await ctx.send("errandtime must be greater than 0")
         else:
             await self.config.guild(ctx.guild).EVENT_START_DELAY.set(seconds)
-            await ctx.send(
-                f"snackburr's errands will now take around {round(seconds/60, 2)} minutes!"
-            )
+            await ctx.send(f"snackburr's errands will now take around {round(seconds/60, 2)} minutes!")
 
     @snackset.command()
     async def errandvariance(self, ctx, seconds: int):
@@ -126,9 +155,7 @@ class Snacktime(commands.Cog):
             await ctx.send("errandvariance must be 0 or greater!")
         else:
             await self.config.guild(ctx.guild).EVENT_START_DELAY_VARIANCE.set(seconds)
-            await ctx.send(
-                f"snackburr now might be {round(seconds/60, 2)} minutes early or late to snacktime"
-            )
+            await ctx.send(f"snackburr now might be {round(seconds/60, 2)} minutes early or late to snacktime")
 
     @snackset.command(name="snacktime")
     async def snacktimetime(self, ctx, seconds: int):
@@ -152,9 +179,7 @@ class Snacktime(commands.Cog):
             await ctx.send("snackvariance must be 0 or greater!")
         else:
             await self.config.guild(ctx.guild).SNACK_DURATION_VARIANCE.set(seconds)
-            await ctx.send(
-                f"snackburr now may have to leave snacktime {round(seconds/60, 2)} minutes early or late"
-            )
+            await ctx.send(f"snackburr now may have to leave snacktime {round(seconds/60, 2)} minutes early or late")
 
     @snackset.command()
     async def msgsneeded(self, ctx, amt: int):
@@ -163,9 +188,7 @@ class Snacktime(commands.Cog):
             await ctx.send("msgsneeded must be greater than 0")
         else:
             await self.config.guild(ctx.guild).MSGS_BEFORE_EVENT.set(amt)
-            await ctx.send(
-                f"snackburr will now wait until {amt} messages pass until he comes with snacks"
-            )
+            await ctx.send(f"snackburr will now wait until {amt} messages pass until he comes with snacks")
 
     @snackset.command()
     async def amount(self, ctx, amt: int):
@@ -225,7 +248,7 @@ class Snacktime(commands.Cog):
                 return
             else:
                 phrases = [
-                    "Don't look at me. I donno where snackburr's at ¯\_(ツ)_/¯",
+                    r"Don't look at me. I donno where snackburr's at ¯\_(ツ)_/¯",
                     "I hear snackburr likes parties. *wink wink",
                     "I hear snackburr is attracted to channels with active conversations",
                     "If you party, snackburr will come! 〈( ^o^)ノ",
@@ -239,13 +262,9 @@ class Snacktime(commands.Cog):
             return
         self.snacktimeCheckLock[scid] = True
         if seconds < 0:
-            await ctx.send(
-                f"I'm not sure where snackburr is.. He's already {round(abs(seconds/60), 2)} minutes late!"
-            )
+            await ctx.send(f"I'm not sure where snackburr is.. He's already {round(abs(seconds/60), 2)} minutes late!")
         else:
-            await ctx.send(
-                f"snackburr's out on errands! I think he'll be back in {round(seconds/60, 2)} minutes"
-            )
+            await ctx.send(f"snackburr's out on errands! I think he'll be back in {round(seconds/60, 2)} minutes")
         await asyncio.sleep(40)
         self.snacktimeCheckLock[scid] = False
 
@@ -253,7 +272,7 @@ class Snacktime(commands.Cog):
         scid = f"{message.guild.id}-{message.channel.id}"
         if self.acceptInput.get(scid, False):
             return
-        self.channel_persona[scid] = await self.persona_choice(message)
+        self.channel_persona[scid] = await self.persona_choice(ctx=None, message=message)
         await message.channel.send(await self.get_response(message, "SNACKTIME"))
 
         self.acceptInput[scid] = True
@@ -273,20 +292,14 @@ class Snacktime(commands.Cog):
                 await self.config.channel(message.channel).repeatMissedSnacktimes.set(0)
             else:
                 await message.channel.send(await self.get_response(message, "NO_TAKERS"))
-                repeat_missed_snacktimes = await self.config.channel(
-                    message.channel
-                ).repeatMissedSnacktimes()
-                await self.config.channel(message.channel).repeatMissedSnacktimes.set(
-                    repeat_missed_snacktimes + 1
-                )
+                repeat_missed_snacktimes = await self.config.channel(message.channel).repeatMissedSnacktimes()
+                await self.config.channel(message.channel).repeatMissedSnacktimes.set(repeat_missed_snacktimes + 1)
                 await asyncio.sleep(2)
                 if (repeat_missed_snacktimes + 1) > 9:  # move to a setting
                     await message.channel.send(await self.get_response(message, "LONELY"))
                     deliver_channels = await self.config.guild(message.guild).DELIVER_CHANNELS()
                     new_deliver_channels = deliver_channels.remove(message.channel.id)
-                    await self.config.guild(message.guild).DELIVER_CHANNELS.set(
-                        new_deliver_channels
-                    )
+                    await self.config.guild(message.guild).DELIVER_CHANNELS.set(new_deliver_channels)
                     await self.config.channel(message.channel).repeatMissedSnacktimes.set(0)
         except:
             log.error("Snacktime: Failed to send message in startSnack")
@@ -332,9 +345,7 @@ class Snacktime(commands.Cog):
                         # start snacktime
                         await self.startSnack(message)
                 # if no snack coming, schedule one
-                elif self.snackInProgress.get(scid, False) == False and not self.startLock.get(
-                    scid, False
-                ):
+                elif self.snackInProgress.get(scid, False) == False and not self.startLock.get(scid, False):
                     self.msgsPassed[scid] = self.msgsPassed.get(scid, 0) + 1
                     # check for collisions
                     msgs_before_event = await self.config.guild(message.guild).MSGS_BEFORE_EVENT()
@@ -352,9 +363,7 @@ class Snacktime(commands.Cog):
                             log.debug(f"Snacktime: {message.author.name} - I got the Lock")
                             self.lockRequests[scid] = []
                             # someone got through already
-                            if self.msgsPassed[
-                                scid
-                            ] < msgs_before_event or self.snackInProgress.get(scid, False):
+                            if self.msgsPassed[scid] < msgs_before_event or self.snackInProgress.get(scid, False):
                                 log.debug("Snacktime: Lock: someone got through already.")
                                 return
                             else:
@@ -371,8 +380,7 @@ class Snacktime(commands.Cog):
                         log.debug(f"Snacktime: activity: {message.content}")
                         guild_data = await self.config.guild(message.guild).all()
                         timeTillSnack = guild_data["EVENT_START_DELAY"] + randint(
-                            -guild_data["EVENT_START_DELAY_VARIANCE"],
-                            guild_data["EVENT_START_DELAY_VARIANCE"],
+                            -guild_data["EVENT_START_DELAY_VARIANCE"], guild_data["EVENT_START_DELAY_VARIANCE"],
                         )
                         log.debug(f"Snacktime: {str(timeTillSnack)} seconds till snacktime")
                         self.snacktimePrediction[scid] = msgTime + guild_data["EVENT_START_DELAY"]
@@ -417,10 +425,7 @@ class Snacktime(commands.Cog):
                     userWants = False
                     for agreePhrase in agree_phrases:
                         # no one word answers
-                        if (
-                            agreePhrase in message.content.lower()
-                            and len(message.content.split()) > 1
-                        ):
+                        if agreePhrase in message.content.lower() and len(message.content.split()) > 1:
                             userWants = True
                             break
                     if userWants:
@@ -439,10 +444,13 @@ class Snacktime(commands.Cog):
                                 resp = await self.get_response(message, "LAST_SECOND")
                                 resp = resp.format(message.author.name, snackAmt)
                                 await message.channel.send(resp)
-                            await bank.deposit_credits(message.author, snackAmt)
-                        except:
+                            try:
+                                await bank.deposit_credits(message.author, snackAmt)
+                            except BalanceTooHigh as b:
+                                await bank.set_balance(message.author, b.max_balance)
+                        except Exception as e:
                             log.info(
-                                f"Snacktime: Failed to send pb message. {message.author.name} didn't get pb"
+                                f"Failed to send pb message. {message.author.name} didn't get pb\n", exc_info=True,
                             )
 
                 else:

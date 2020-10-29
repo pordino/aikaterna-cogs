@@ -1,13 +1,13 @@
 # aikaterna-cogs
 v3 Cogs for Red-DiscordBot by Twentysix26.
 
-adventure - Originally by Locastan. My version is a collaboration between TrustyJAID, Draper, and myself. The repo can be found at: https://github.com/aikaterna/gobcog
+adventure - Original concept & cog by locastan. My version is a collaboration between TrustyJAID, Draper, and myself and is now markedly different than locastan's version. The repo can be found on my repo page here on github.
 
-antiphoneclapper - Detects and removes bad GIFs posted in chat that have malformed frames. Thanks to Sitryk for all of the code that actually mattered for detection in this cog. Config stuff tacked on by me. Later iterations will include emoji recognizing and possibly link detection for these bad images.
+antiphoneclapper - Detects and removes bad GIFs posted in chat that have malformed frames. Thanks to Sitryk for all of the code that actually mattered for detection in this cog.
 
-away - Originally by Paddo, written for v3 by Axas, final tests by aikaterna, and large improvements by TrustyJAID. Set and unset a user as being "away".
+away - Originally by Paddo, written for v3 by Axas, final tests by aikaterna, and large improvements by TrustyJAID. Set and unset a user as being "away", or other statuses.
 
-blurplefy - Make an avatar or an image upload blurple for Discord's 3rd anniversary.
+blurplefy - Make an avatar or an image upload blurple for Discord's anniversaries.
 
 cah - Cards Against Humanity, played in DM's. This can rate limit large bots via the sheer number of messages sent. Install and use with caution on larger bots.
 
@@ -15,19 +15,23 @@ chatchart - Generates a pie chart to display chat activity over the last 5000 me
 
 dadjokes - Another UltimatePancake cog. Get some dad jokes on command.
 
-dictonary - I stole this from UltimatePancake's v2 cogs, defines words via a dictonary. Only the "define" command for now until the dependency owner updates their files with a pending PR.
+dictonary - Define words and look up antonyms and synonyms. Originally by UltimatePancake.
 
-dungeon - New users with new accounts will be shuffled off to a locked channel on-join to help mitigate raiders. Please see the dungeon_readme.md file on this repo for more information.
+dungeon - New users with new accounts will be shuffled off to a locked channel on-join to help mitigate raiders. Please see the [dungeon_readme.md](https://github.com/aikaterna/aikaterna-cogs/blob/v3/dungeon_readme.md) file on this repo for more information.
 
 hunting - A long overdue port of Paddo's v2 hunting game to v3.
 
 icyparser - Show icecast/shoutcast stream information. An audio addon cog to show the current stream info, or provide a url yourself.
 
-imgwelcome - The repo can be found at: https://github.com/aikaterna/imgwelcome
+imgwelcome - Welcome users to your server(s) with an image. The repo can be found on my repo page here on github.
 
 inspirobot - Fetch "inspirational" messages from inspirobot.me with [p]inspireme.
 
-leveler - A v3 port of Stevy's v2 leveler, originally by Fixator and modified by me. Add the repo at: https://github.com/aikaterna/Fixator10-Cogs
+invites - Display invites that are available on the server and the information those invites contain. The bot must have the administrator permission granted on the guild to be able to use this cog.
+
+latex - A simple cog originally by Stevy for v2 that displayes LaTeX expressions in an image.
+
+luigipoker - Play the Luigi Poker minigame from New Super Mario Brothers. Ported from the v2 version written by themario30.
 
 noflippedtables - A v3 port of irdumb's v2 cog with a little extra surprise included. Unflip all the tables.
 
@@ -43,11 +47,15 @@ pressf - A port/rewrite of NekoTony's v2 pressf cog. Pay your respects by pressi
 
 pupper - A cog for Ryan5374. A pet that comes around on an on_message listener and waits for someone to pet it (react with a standard wave emoji), and rewards with credits. Many attributes are configurable.
 
+quiz - A kahoot-like trivia game. Originally by Keane for Red v2.
+
 region - A command to change the voice region of a server. Requires the guild admin or mod role or guild administrator.
 
-retrosign - A v3 port of Anismash's retrosign cog: https://github.com/Anismash/Ani-Cogs/tree/master/retrosign
+retrosign - A v3 port of Anismash's retrosign cog.
 
 rndstatus - A v3 port of Twentysix's rndstatus cog with a couple extra settings.
+
+rss - Will's RSS cog ported for v3 with a lot of extra bells and whistles.
 
 snacktime - A v3 port of irdumb's snacktime cog. Now with friends!
 
@@ -63,4 +71,4 @@ wolfram - A v3 port of Paddo's abandoned Wolfram Alpha cog.
 
 youtube - A v3 port of Paddo's youtube search cog for v2.
 
-Are you looking for the v3 lavalink music cog? It's been added to Red v3 as the audio module. Install from develop and ask in the Red support server for help if you need it, or join my server. https://discord.gg/th6eS3T
+Support for these cogs is via opened issues on the appropriate repo or in the Red - Cog Support server at https://discord.gg/KcAbsvD, in the support-aikaterna-cogs channel.

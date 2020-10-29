@@ -1,24 +1,30 @@
+from typing import Literal
+
 import aiohttp
-import asyncio
 import datetime
 import discord
 import itertools
 import json
-from typing import Optional
+from operator import itemgetter
 from redbot.core import Config, commands, checks
-from redbot.core.utils.chat_formatting import box, humanize_list, pagify
+from redbot.core.utils.chat_formatting import box
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 
 
 class WarcraftLogs(commands.Cog):
     """Access Warcraftlogs stats."""
 
+    async def red_delete_data_for_user(
+        self, *, requester: Literal["discord", "owner", "user", "user_strict"], user_id: int,
+    ):
+        await self.config.user_from_id(user_id).clear()
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, 2713931001, force_registration=True)
         self.session = aiohttp.ClientSession()
-        self.zones = [1002, 1001, 1000]
-        self.partitions = [2, 1]
+        self.zones = [1005, 1004, 1003, 1002] # Ony and MC removed as we are now in ph 5
+        self.partitions = [3, 2] # No partition 1 needed here now - ZG, AQ, BWL were not present in ph 1 & 2
 
         default_user = {
             "charname": None,
@@ -89,9 +95,7 @@ class WarcraftLogs(commands.Cog):
         userdata = await self.config.user(ctx.author).all()
         apikey = await self.config.apikey()
         if not apikey:
-            return await ctx.send(
-                "The bot owner needs to set a WarcraftLogs API key before this can be used."
-            )
+            return await ctx.send("The bot owner needs to set a WarcraftLogs API key before this can be used.")
         if not username:
             username = userdata["charname"]
             if not username:
@@ -135,9 +139,7 @@ class WarcraftLogs(commands.Cog):
                     log_data.append(log_info)
 
         # Logged Kill sorting
-        embed1 = discord.Embed(
-            title=f"{username.title()} - {realmname.title()} ({region.upper()})\nLogged Kills"
-        )
+        embed1 = discord.Embed(title=f"{username.title()} - {realmname.title()} ({region.upper()})\nLogged Kills")
         for item in kill_data:
             zone_kills = ""
             for boss_info in list(item.values()):
@@ -146,6 +148,7 @@ class WarcraftLogs(commands.Cog):
                     zone_kills += f"{boss_name}: {boss_kills}\n"
             if zone_kills:
                 embed1.add_field(name=f"{zone_name}\n{phase_num}", value=zone_kills)
+        embed1.set_footer(text="Molten Core and Onyxia are not currently displayed as we are now in Phase 5.")
         final_embed_list.append(embed1)
 
         # Log ID sorting
@@ -155,10 +158,7 @@ class WarcraftLogs(commands.Cog):
         for item in log_data:
             log_page = ""
             for id_data in list(item.values()):
-                sorted_item = {
-                    k: v
-                    for k, v in sorted(id_data.items(), key=lambda item: item[1], reverse=True)
-                }
+                sorted_item = {k: v for k, v in sorted(id_data.items(), key=lambda item: item[1], reverse=True)}
                 short_list = dict(itertools.islice(sorted_item.items(), 5))
                 zone_name, phase_num = self.clean_name(list(item))
                 for log_id, info_list in short_list.items():
@@ -181,63 +181,63 @@ class WarcraftLogs(commands.Cog):
 
         await menu(ctx, final_embed_list, DEFAULT_CONTROLS)
 
-    @commands.command()
-    @commands.guild_only()
-    async def wclgear(self, ctx, username=None, realmname=None, region=None):
-        """Fetch gear info about a player."""
-        userdata = await self.config.user(ctx.author).all()
-        apikey = await self.config.apikey()
-        if not apikey:
-            return await ctx.send(
-                "The bot owner needs to set a WarcraftLogs API key before this can be used."
-            )
-        if not username:
-            username = userdata["charname"]
-            if not username:
-                return await ctx.send("Please specify a character name with this command.")
-        if not realmname:
-            realmname = userdata["realm"]
-            if not realmname:
-                return await ctx.send("Please specify a realm name with this command.")
-        if not region:
-            region = userdata["region"]
-            if not region:
-                return await ctx.send("Please specify a region name with this command.")
+    # @commands.command()
+    # @commands.guild_only()
+    # async def wclgear(self, ctx, username=None, realmname=None, region=None):
+        # """Fetch gear info about a player."""
+        # userdata = await self.config.user(ctx.author).all()
+        # apikey = await self.config.apikey()
+        # if not apikey:
+            # return await ctx.send("The bot owner needs to set a WarcraftLogs API key before this can be used.")
+        # if not username:
+            # username = userdata["charname"]
+            # if not username:
+                # return await ctx.send("Please specify a character name with this command.")
+        # if not realmname:
+            # realmname = userdata["realm"]
+            # if not realmname:
+                # return await ctx.send("Please specify a realm name with this command.")
+        # if not region:
+            # region = userdata["region"]
+            # if not region:
+                # return await ctx.send("Please specify a region name with this command.")
 
-        for zone, phase in [(x, y) for x in self.zones for y in self.partitions]:
-            url = f"https://classic.warcraftlogs.com/v1/parses/character/{username}/{realmname}/{region}?zone={zone}&partition={phase}&api_key={apikey}"
+        # all_encounters = []
+        # for zone, phase in [(x, y) for x in self.zones for y in self.partitions]:
+            # url = f"https://classic.warcraftlogs.com/v1/parses/character/{username}/{realmname}/{region}?zone={zone}&partition={phase}&api_key={apikey}"
 
-            async with self.session.request("GET", url) as page:
-                data = await page.text()
-                data = json.loads(data)
-                if "error" in data:
-                    return await ctx.send(
-                        f"{username.title()} - {realmname.title()} ({region.upper()}) doesn't have any valid logs that I can see.\nError {data['status']}: {data['error']}"
-                    )
-                if data:
-                    encounter = self.get_recent_gear(data)
-                    if encounter:
-                        break
+            # async with self.session.request("GET", url) as page:
+                # data = await page.text()
+                # data = json.loads(data)
+                # if "error" in data:
+                    # return await ctx.send(
+                        # f"{username.title()} - {realmname.title()} ({region.upper()}) doesn't have any valid logs that I can see.\nError {data['status']}: {data['error']}"
+                    # )
+                # if data:
+                    # encounter = self.get_recent_gear(data)
+                    # if encounter:
+                        # all_encounters.append(encounter)
+        # final = self.get_recent_gear(all_encounters)
 
-        wowhead_url = "https://classic.wowhead.com/item={}"
-        wcl_url = "https://classic.warcraftlogs.com/reports/{}"
-        itempage = ""
+        # wowhead_url = "https://classic.wowhead.com/item={}"
+        # wcl_url = "https://classic.warcraftlogs.com/reports/{}"
+        # itempage = ""
 
-        for item in encounter["gear"]:
-            if item["id"] == 0:
-                continue
-            rarity = self.get_rarity(item)
-            itempage += f"{rarity} [{item['name']}]({wowhead_url.format(item['id'])})\n"
-        itempage += f"\nAverage ilvl: {encounter['ilvlKeyOrPatch']}"
+        # for item in final["gear"]:
+            # if item["id"] == 0:
+                # continue
+            # rarity = self.get_rarity(item)
+            # itempage += f"{rarity} [{item['name']}]({wowhead_url.format(item['id'])})\n"
+        # itempage += f"\nAverage ilvl: {final['ilvlKeyOrPatch']}"
 
-        embed = discord.Embed(
-            title=f"{encounter['characterName']} - {encounter['server']} ({region.upper()})\n{encounter['class']} ({encounter['spec']})",
-            description=itempage,
-        )
-        embed.set_footer(
-            text=f"Gear data pulled from {wcl_url.format(encounter['reportID'])}\nEncounter: {encounter['encounterName']}\nLog Date/Time: {self.time_convert(encounter['startTime'])} UTC"
-        )
-        await ctx.send(embed=embed)
+        # embed = discord.Embed(
+            # title=f"{final['characterName']} - {final['server']} ({region.upper()})\n{final['class']} ({final['spec']})",
+            # description=itempage,
+        # )
+        # embed.set_footer(
+            # text=f"Gear data pulled from {wcl_url.format(final['reportID'])}\nEncounter: {final['encounterName']}\nLog Date/Time: {self.time_convert(final['startTime'])} UTC"
+        # )
+        # await ctx.send(embed=embed)
 
     @staticmethod
     def get_rarity(item):
@@ -280,8 +280,16 @@ class WarcraftLogs(commands.Cog):
             zone_name = "MoltenCore"
         elif zone == 1001:
             zone_name = "Onyxia"
-        else:
+        elif zone == 1002:
             zone_name = "BWL"
+        elif zone == 1003:
+            zone_name = "ZG"
+        elif zone == 1004:
+            zone_name = "AQ20"
+        elif zone == 1005:
+            zone_name = "AQ40"
+        else:
+            zone_name = None
         return zone_name
 
     @staticmethod
@@ -294,13 +302,21 @@ class WarcraftLogs(commands.Cog):
             zone_name = "Molten Core"
         elif zone_name == "BWL":
             zone_name = "Blackwing Lair"
+        elif zone_name == "ZG":
+            zone_name = "Zul'Gurub"
+        elif zone_name == "AQ20":
+            zone_name = "Ahn'Qiraj Ruins"
+        elif zone_name == "AQ40":
+            zone_name = "Ahn'Qiraj Temple"
         else:
             zone_name = zone_name
 
         if phase_num == "1":
             phase_num = "Phase 1 & 2"
+        elif phase_num == "2":
+            phase_num = "Phase 3 & 4"
         else:
-            phase_num = "Phase 3"
+            phase_num = "Phase 5"
         return zone_name, phase_num
 
     @staticmethod
@@ -322,8 +338,8 @@ class WarcraftLogs(commands.Cog):
 
     @staticmethod
     def get_recent_gear(data):
-        data = reversed(data)
-        for encounter in data:
+        date_sorted_data = sorted(data, key=itemgetter("startTime"), reverse=True)
+        for encounter in date_sorted_data:
             try:
                 item_name = encounter["gear"][0]["name"]
                 if item_name == "Unknown Item":

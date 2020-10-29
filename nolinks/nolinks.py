@@ -2,8 +2,18 @@ import discord
 import re
 from redbot.core import Config, commands, checks
 
+LINKS = re.compile(
+    "(\|\|)?(([\w]+:)?\/\/)?(([\d\w]|%[a-fA-f\d]{2,2})+(:([\d\w]|%[a-fA-f\d]{2,2})+)?@)?([\d\w][-\d\w]{0,253}[\d\w]\.)+[\w]{2,63}(:[\d]+)?(\/([-+_~.\d\w]|%[a-fA-f\d]{2,2})*)*(\?(&?([-+_~.\d\w]|%[a-fA-f\d]{2,2})=?)*)?(#([-+_~.\d\w]|%[a-fA-f\d]{2,2})*)?(\|\|)?"
+)
+
 
 class NoLinks(commands.Cog):
+    """A heavy-handed hammer for anything that looks like a link."""
+
+    async def red_delete_data_for_user(self, **kwargs):
+        """ Nothing to delete """
+        return
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, 2740131001, force_registration=True)
@@ -125,12 +135,8 @@ class NoLinks(commands.Cog):
                 sentence = message.content.split()
                 for word in sentence:
                     if self._match_url(word):
-                        msg = "**Message Removed in** {} ({})\n".format(
-                            message.channel.mention, message.channel.id
-                        )
-                        msg += "**Message sent by**: {} ({})\n".format(
-                            message.author.name, message.author.id
-                        )
+                        msg = "**Message Removed in** {} ({})\n".format(message.channel.mention, message.channel.id)
+                        msg += "**Message sent by**: {} ({})\n".format(message.author.name, message.author.id)
                         msg += "**Message content**:\n{}".format(message.content)
                         if message_channel:
                             await message_channel.send(msg)
@@ -142,10 +148,4 @@ class NoLinks(commands.Cog):
 
     @staticmethod
     def _match_url(url):
-        regex = re.compile(
-            "(([\w]+:)?//)?(([\d\w]|%[a-fA-f\d]{2,2})+(:([\d\w]|%[a-fA-f\d]{2,2})+)?@)?([\d\w][-\d\w]{0,253}[\d\w]\.)+[\w]{2,63}(:[\d]+)?(/([-+_~.\d\w]|%[a-fA-f\d]{2,2})*)*(\?(&?([-+_~.\d\w]|%[a-fA-f\d]{2,2})=?)*)?(#([-+_~.\d\w]|%[a-fA-f\d]{2,2})*)?"
-        )
-        if regex.match(url):
-            return True
-        else:
-            return False
+        return LINKS.match(url)
