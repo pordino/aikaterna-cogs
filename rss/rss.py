@@ -25,7 +25,7 @@ from .tag_type import INTERNAL_TAGS, VALID_IMAGES, TagType
 log = logging.getLogger("red.aikaterna.rss")
 
 
-__version__ = "1.2.1"
+__version__ = "1.3.3"
 
 
 class RSS(commands.Cog):
@@ -656,6 +656,51 @@ class RSS(commands.Cog):
 
         await ctx.send(f"Embeds for {bold(feed_name)} are {toggle_text}.")
 
+    @rss.command(name="find")
+    async def _rss_find(self, ctx, website_url: str):
+        """
+        Attempts to find RSS feeds from a URL/website.
+
+        The site must have identified their feed in the html of the page based on RSS feed type standards.
+        """
+        async with ctx.typing():
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.get(website_url) as response:
+                        soup = BeautifulSoup(await response.text(), "html.parser")
+                except (aiohttp.client_exceptions.ClientConnectorError, aiohttp.client_exceptions.ClientPayloadError):
+                    await ctx.send("I can't reach that website.")
+                    return
+                except aiohttp.client_exceptions.InvalidURL:
+                    await ctx.send("That seems to be an invalid URL. Use a full website URL like `https://www.site.com/`.")
+                    return
+        if not soup:
+            await ctx.send("I didn't find anything at all on that link.")
+            return
+        msg = ""
+        url_parse = urlparse(website_url)
+        base_url = url_parse.netloc
+        url_scheme = url_parse.scheme
+
+        feed_url_types = ["application/rss+xml", "application/atom+xml", "text/xml", "application/rdf+xml"]
+        for feed_type in feed_url_types:
+            possible_feeds = soup.find_all('link', rel='alternate', type=feed_type, href=True)
+            for feed in possible_feeds:
+                feed_url = feed.get('href', None)
+                if not feed_url:
+                    continue
+                feed_url = feed_url.lstrip("/")
+                if ((not feed_url.startswith(url_scheme)) and (not feed_url.startswith(base_url))):
+                    feed_url = f"{url_scheme}://{base_url}/{feed_url}"
+                if feed_url.startswith(base_url):
+                    feed_url = f"{url_scheme}://{base_url}"
+                msg += f"[Feed Title]: {feed.get('title', None)}\n"
+                msg += f"[Feed URL]: {feed_url}\n\n"
+        if msg:
+            await ctx.send(box(msg, lang="ini"))
+        else:
+            await ctx.send("No RSS feeds found in the link provided.")
+
     @rss.command(name="force")
     async def _rss_force(self, ctx, feed_name: str, channel: Optional[discord.TextChannel] = None):
         """Forces a feed alert."""
@@ -677,6 +722,46 @@ class RSS(commands.Cog):
 
         rss_feed = feeds[channel.id]["feeds"][feed_name]
         await self.get_current_feed(channel, feed_name, rss_feed, force=True)
+
+    @rss.command(name="limit")
+    async def _rss_limit(self, ctx, feed_name: str, channel: Optional[discord.TextChannel] = None, character_limit: int = None):
+        """
+        Set a character limit for feed posts. Use 0 for unlimited.
+
+        RSS posts are naturally split at around 2000 characters to fit within the Discord character limit per message.
+        If you only want the first embed or first message in a post feed to show, use 2000 or less characters for this setting.
+
+        Note that this setting applies the character limit to the entire post, for all template values on the feed together.
+        For example, if the template is `$title\\n$content\\n$link`, and title + content + link is longer than the limit, the link will not show.
+        """
+        extra_msg = ""
+
+        if character_limit is None:
+            await ctx.send_help()
+            return
+
+        if character_limit < 0:
+            await ctx.send("Character limit cannot be less than zero.")
+            return
+
+        if character_limit > 20000:
+            character_limit = 0
+
+        if 0 < character_limit < 20:
+            extra_msg = "Character limit has a 20 character minimum.\n"
+            character_limit = 20
+
+        channel = channel or ctx.channel
+        rss_feed = await self.config.channel(channel).feeds.get_raw(feed_name, default=None)
+        if not rss_feed:
+            await ctx.send("That feed name doesn't exist in this channel.")
+            return
+        
+        async with self.config.channel(channel).feeds() as feed_data:
+            feed_data[feed_name]["limit"] = character_limit
+
+        characters = f"approximately {character_limit}" if character_limit > 0 else "an unlimited amount of"
+        await ctx.send(f"{extra_msg}Character limit for {bold(feed_name)} is now {characters} characters.")
 
     @rss.command(name="list")
     async def _rss_list(self, ctx, channel: discord.TextChannel = None):
@@ -803,10 +888,16 @@ class RSS(commands.Cog):
             for tag in allowed_tags:
                 tag_msg += f"\n\t{await self._title_case(tag)}"
 
+        character_limit = rss_feed.get("limit", 0)
+        if character_limit == 0:
+            length_msg = "[ ] Feed length is unlimited."
+        else:
+            length_msg = f"[X] Feed length is capped at {character_limit} characters."
+
         embed_settings = f"{embed_toggle}\n{embed_color}\n{embed_image}\n{embed_thumbnail}"
         rss_template = rss_feed["template"].replace("\n", "\\n").replace("\t", "\\t")
 
-        msg = f"Template for {bold(feed_name)}:\n\n`{rss_template}`\n\n{box(embed_settings, lang='ini')}\n{box(tag_msg, lang='ini')}"
+        msg = f"Template for {bold(feed_name)}:\n\n`{rss_template}`\n\n{box(embed_settings, lang='ini')}\n{box(tag_msg, lang='ini')}\n{box(length_msg, lang='ini')}"
 
         for page in pagify(msg, delims=["\n"], page_length=1800):
             await ctx.send(page)
@@ -932,6 +1023,10 @@ class RSS(commands.Cog):
 
         if not force:
             entry_time = await self._time_tag_validation(sorted_feed_by_post_time[0])
+            if (last_time and entry_time) is not None:
+                if last_time > entry_time:
+                    log.debug("Not posting because new entry is older than last saved entry.")
+                    return
             await self._update_last_scraped(channel, name, sorted_feed_by_post_time[0].title, sorted_feed_by_post_time[0].link, entry_time)
 
         feedparser_plus_objects = []
@@ -1023,6 +1118,11 @@ class RSS(commands.Cog):
             embed_toggle = rss_feed["embed"]
             red_embed_settings = await self.bot.embed_requested(channel, None)
             embed_permissions = channel.permissions_for(channel.guild.me).embed_links
+
+            rss_limit = rss_feed.get("limit", 0)
+            if rss_limit > 0:
+                # rss_limit needs + 8 characters for pagify counting codeblock characters
+                message = list(pagify(message, delims=["\n", " "], priority=True, page_length=(rss_limit + 8)))[0]
 
             if embed_toggle and red_embed_settings and embed_permissions:
                 await self._get_current_feed_embed(channel, rss_feed, feedparser_plus_obj, message)
